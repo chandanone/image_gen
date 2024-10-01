@@ -32,23 +32,23 @@ function genId() {
   return count.toString()
 }
 
-type ActionType = typeof actionTypes[keyof typeof actionTypes];
+type ActionType = typeof actionTypes
 
 type Action =
   | {
-      type: typeof actionTypes.ADD_TOAST;
+      type: ActionType["ADD_TOAST"]
       toast: ToasterToast
     }
   | {
-      type: typeof actionTypes.UPDATE_TOAST;
+      type: ActionType["UPDATE_TOAST"]
       toast: Partial<ToasterToast>
     }
   | {
-      type: typeof actionTypes.DISMISS_TOAST;
+      type: ActionType["DISMISS_TOAST"]
       toastId?: ToasterToast["id"]
     }
   | {
-      type: typeof actionTypes.REMOVE_TOAST;
+      type: ActionType["REMOVE_TOAST"]
       toastId?: ToasterToast["id"]
     }
 
@@ -66,7 +66,7 @@ const addToRemoveQueue = (toastId: string) => {
   const timeout = setTimeout(() => {
     toastTimeouts.delete(toastId)
     dispatch({
-      type: actionTypes.REMOVE_TOAST,
+      type: "REMOVE_TOAST",
       toastId: toastId,
     })
   }, TOAST_REMOVE_DELAY)
