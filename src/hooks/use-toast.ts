@@ -18,12 +18,12 @@ type ToasterToast = ToastProps & {
   action?: ToastActionElement
 }
 
-type ActionTypes = {
+const actionTypes = {
   ADD_TOAST: "ADD_TOAST",
   UPDATE_TOAST: "UPDATE_TOAST",
   DISMISS_TOAST: "DISMISS_TOAST",
   REMOVE_TOAST: "REMOVE_TOAST",
-};
+} as const
 
 let count = 0
 
@@ -32,23 +32,23 @@ function genId() {
   return count.toString()
 }
 
-type ActionType = ActionTypes[keyof ActionTypes];
+type ActionType = typeof actionTypes[keyof typeof actionTypes];
 
 type Action =
   | {
-      type: "ADD_TOAST",
+      type: typeof actionTypes.ADD_TOAST;
       toast: ToasterToast
     }
   | {
-      type: "UPDATE_TOAST",
+      type: typeof actionTypes.UPDATE_TOAST;
       toast: Partial<ToasterToast>
     }
   | {
-      type: "DISMISS_TOAST",
+      type: typeof actionTypes.DISMISS_TOAST;
       toastId?: ToasterToast["id"]
     }
   | {
-      type: "REMOVE_TOAST",
+      type: typeof actionTypes.REMOVE_TOAST;
       toastId?: ToasterToast["id"]
     }
 
@@ -66,7 +66,7 @@ const addToRemoveQueue = (toastId: string) => {
   const timeout = setTimeout(() => {
     toastTimeouts.delete(toastId)
     dispatch({
-      type: "REMOVE_TOAST",
+      type: actionTypes.REMOVE_TOAST,
       toastId: toastId,
     })
   }, TOAST_REMOVE_DELAY)
