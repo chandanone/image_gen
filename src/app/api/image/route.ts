@@ -69,11 +69,11 @@ export async function GET(){
     return NextResponse.json({ error: "No user found"}, { status: 401});
   }
 
-  const posts = await prisma.post.findMany({
+  const posts = await prisma.post.findMany({ 
     where: {
-      userId: session.user.id,
+      userId: user.id
     },
-  });
+    orderBy: {createdAt: "desc"}});
 
   return NextResponse.json(posts);
 }
