@@ -17,9 +17,12 @@ export default function Page() {
           const response = await fetch('/api/image');
           const data = await response.json();
           console.log(data);
-          setPosts(data);
+          // Check if data is an array; if not, set posts to an empty array
+          setPosts(Array.isArray(data) ? data : []);
+          //setPosts(data);
       } catch (error) {
           console.error(error);
+          setPosts([]); // Set posts to an empty array if there's an error
       } finally{
           setLoading(false);
       };        
@@ -36,7 +39,7 @@ export default function Page() {
           <BiLoaderCircle className='animate-spin' />
         </div>
       ) : (
-        <AnimatePresence mode='wait'>
+        <AnimatePresence mode='popLayout'>
           {posts.map((post, index) => {
               return (
                 <motion.div

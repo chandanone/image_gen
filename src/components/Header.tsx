@@ -15,14 +15,14 @@ export default function Header() {
     if (status !== "loading") {
       setInitialLoading(false);
     }
-  }, [status, session]);
+  }, [status]);
 
   return (
     <div className="fixed top-0 w-full h-[60px] bg-black border-b border-white/60 p-3 flex justify-between items-center z-50">
       <Link href="/">
         <h2 className="font-bold text-xl">Image GenX</h2>
       </Link>
-      {initialLoading && status === "loading" ? (
+      {initialLoading ? (
         <BiLoaderCircle className="animate-spin" />
       ) : !session ? (
         <div className="__menu">
@@ -30,7 +30,7 @@ export default function Header() {
         </div>
       ) : (
         <div className="flex gap-3 justify-center items-center">
-          <Button onClick={() => signOut()} variant="destructive">
+          <Button onClick={() => signOut({ callbackUrl: "/" })} variant="destructive">
             Logout
           </Button>
           <Link href="/profile">
