@@ -51,8 +51,11 @@ export default function Home() {
             }}
             transition={{ duration: 0.35, delay: 0.7}}
           >
-            <Link href="/create">
-              <Button className="mt-3 font-bold p-5">Start Creating</Button>
+            <Link href="/create_image">
+              <Button className="mt-3 font-bold p-5">Start Creating Image</Button>
+            </Link>
+            <Link href="/create_text">
+              <Button className="mt-3 font-bold p-5">Start Generating Text</Button>
             </Link>
           </motion.div>
       </div>

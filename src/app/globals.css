@@ -76,3 +76,32 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+/* Add this to your global CSS or Tailwind config */
+.teleprompter-container {
+  height: 300px; /* Adjust based on your requirement */
+  overflow: hidden;
+  position: relative;
+  background: #000; /* Background color to make it look like a teleprompter */
+  color: #fff; /* Text color */
+  padding: 10px;
+  border: 2px solid #333; /* Just to make it look like an enclosed screen */
+}
+
+.teleprompter {
+  position: absolute;
+  white-space: pre-wrap; /* So the text wraps correctly */
+}
+
+.teleprompter-text {
+  animation: scrollText 100s linear infinite; /* Adjust the time as needed */
+}
+
+@keyframes scrollText {
+  0% {
+    transform: translateY(100%);
+  }
+  100% {
+    transform: translateY(-100%);
+  }
+}
