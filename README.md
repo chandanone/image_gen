@@ -12,8 +12,8 @@ This project is a Next.js application that uses artificial intelligence to gener
 ## Installation
 1. Clone the repository:
     ```sh
-    git clone https://github.com/yourusername/ai-image-generation-app.git
-    cd ai-image-generation-app
+    git clone https://github.com/chandanone/image_gen
+    cd image_gen
     ```
 
 2. Install the dependencies:
@@ -39,6 +39,7 @@ This project is a Next.js application that uses artificial intelligence to gener
 1. Open the app in your browser at `http://localhost:3000`.
 2. Enter a prompt in the input field and submit.
 3. The AI will generate an image based on your prompt and display it on the screen.
+4. The user geenrated images can be viewd by lcicking the user profile image icon.
 
 ## Features
 - User-friendly interface with Tailwind UI.
