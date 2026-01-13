@@ -103,7 +103,11 @@ export default function Page() {
         return;
       }
 
-      if (!response.body) return;
+      if (!response.body) {
+        setIsStreaming(false);
+        abortControllerRef.current = null;
+        return;
+      }
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();

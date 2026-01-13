@@ -10,7 +10,7 @@ export async function POST(req: Request) {
 
   if (!session) {
     return NextResponse.json(
-      { error: "You are unauthorized! Login before generaitng result" },
+      { error: "You are unauthorized! Login before generating result" },
       { status: 401 }
     );
   }
@@ -36,6 +36,10 @@ export async function POST(req: Request) {
   )}?seed=${seed}`;
 
   const aiResponse = await fetch(pollinationsUrl);
+
+  if (!aiResponse.ok) {
+    return new NextResponse("AI service error", { status: 502 });
+  }
 
   if (!aiResponse.body) {
     return new NextResponse("AI stream failed", { status: 500 });
