@@ -5,20 +5,34 @@ import prisma from "@/utils/prisma";
 
 export const runtime = "nodejs"; // REQUIRED for next-auth
 
+const MAX_PROMPT_LENGTH = 500;
+
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
 
   if (!session) {
     return NextResponse.json(
-      { error: "You are unauthorized! Login before generating result" },
+      { error: "Unauthorized. Please login." },
       { status: 401 }
     );
   }
 
-  const { prompt } = await req.json();
+  // ✅ Guard against invalid JSON
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
 
-  if (!prompt || typeof prompt !== "string") {
-    return new NextResponse("Invalid prompt", { status: 400 });
+  const { prompt } = body as { prompt?: unknown };
+
+  if (
+    typeof prompt !== "string" ||
+    !prompt.trim() ||
+    prompt.length > MAX_PROMPT_LENGTH
+  ) {
+    return NextResponse.json({ error: "Invalid prompt" }, { status: 400 });
   }
 
   const user = await prisma.user.findUnique({
@@ -26,30 +40,46 @@ export async function POST(req: Request) {
   });
 
   if (!user) {
-    return new NextResponse("User not found", { status: 401 });
+    return NextResponse.json({ error: "User not found" }, { status: 401 });
   }
 
   const seed = Math.floor(Math.random() * 100000) + 1;
 
-  const pollinationsUrl = `https://text.pollinations.ai/prompt/${encodeURIComponent(
-    prompt
-  )}?seed=${seed}`;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000); // 10s timeout
 
-  const aiResponse = await fetch(pollinationsUrl);
+  let aiResponse: Response;
 
-  if (!aiResponse.ok) {
-    return new NextResponse("AI service error", { status: 502 });
+  try {
+    const pollinationsUrl = `https://text.pollinations.ai/prompt/${encodeURIComponent(
+      prompt
+    )}?seed=${seed}`;
+
+    aiResponse = await fetch(pollinationsUrl, {
+      signal: controller.signal,
+    });
+  } catch (err) {
+    clearTimeout(timeout);
+    return NextResponse.json(
+      { error: "AI service unavailable" },
+      { status: 502 }
+    );
+  } finally {
+    clearTimeout(timeout);
   }
 
-  if (!aiResponse.body) {
-    return new NextResponse("AI stream failed", { status: 500 });
+  if (!aiResponse.ok || !aiResponse.body) {
+    return NextResponse.json(
+      { error: "AI generation failed" },
+      { status: 502 }
+    );
   }
 
-  // STREAM PASSTHROUGH
+  // ✅ Stream passthrough (user-specific → no-store)
   return new NextResponse(aiResponse.body, {
     headers: {
       "Content-Type": "text/plain; charset=utf-8",
-      "Cache-Control": "no-cache",
+      "Cache-Control": "no-store",
     },
   });
 }
