@@ -1,133 +1,226 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
-import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import React, { useState, useEffect } from "react";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import React, { useEffect, useRef, useState } from "react";
 import { z } from "zod";
-import { useToast } from "@/hooks/use-toast";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import ReactMarkdown from "react-markdown";
 
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormMessage,
+} from "@/components/ui/form";
+import { useToast } from "@/hooks/use-toast";
+
 const formSchema = z.object({
-  prompt: z
-    .string()
-    .min(7, { message: "Prompt must be at least 7 characters!" }),
+  prompt: z.string().min(7, "Prompt must be at least 7 characters"),
 });
 
+const TYPE_DELAY = 15; // typing speed (ms per character)
+
 export default function Page() {
-  const [outputText, setOutputText] = useState<string | null>(null);
-  const [displayText, setDisplayText] = useState<string>("");
-  const [loading, setLoading] = useState<boolean>(false);
+  const [displayText, setDisplayText] = useState("");
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [cursorVisible, setCursorVisible] = useState(true);
   const { toast } = useToast();
+
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({
+      behavior: "smooth",
+    });
+  }, [displayText]);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      prompt: "",
-    },
+    defaultValues: { prompt: "" },
   });
 
-  async function onSubmit(values: z.infer<typeof formSchema>) {
-    try {
-      setLoading(true);
-      setOutputText(null);
-      setDisplayText(""); // Clear previous result
+  /* ---------------- CURSOR BLINK ---------------- */
+  useEffect(() => {
+    if (!isStreaming) return;
 
+    const interval = setInterval(() => {
+      setCursorVisible((v) => !v);
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, [isStreaming]);
+
+  /* ---------------- STOP GENERATION ---------------- */
+  function stopGeneration() {
+    abortControllerRef.current?.abort();
+    setIsStreaming(false);
+  }
+
+  /* ---------------- SUBMIT ---------------- */
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    setDisplayText("");
+    setIsStreaming(true);
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    try {
       const response = await fetch("/api/text", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(values),
+        signal: controller.signal,
       });
 
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder("utf-8");
+      if (response.status === 401) {
+        const data = await response.json();
+
+        toast({
+          variant: "destructive",
+          title: "Unauthorized",
+          description:
+            data?.error ??
+            "You are unauthorized! Login before generating result",
+        });
+
+        setIsStreaming(false);
+        return;
+      }
+
+      // 🔴 HANDLE OTHER ERRORS
+      if (!response.ok) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Something went wrong. Please try again.",
+        });
+        setIsStreaming(false);
+        return;
+      }
+
+      if (!response.body) return;
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+
+      let buffer = "";
       let done = false;
-      let streamedText = "";
+
+      const typeLoop = async () => {
+        while (buffer.length > 0) {
+          setDisplayText((prev) => prev + buffer[0]);
+          buffer = buffer.slice(1);
+          await new Promise((r) => setTimeout(r, TYPE_DELAY));
+        }
+      };
 
       while (!done) {
-        const { value, done: doneReading } = (await reader?.read()) || {};
-        done = doneReading || false;
-        streamedText += decoder.decode(value);
-        setOutputText(streamedText);
+        const { value, done: doneReading } = await reader.read();
+        done = doneReading;
+
+        if (value) {
+          buffer += decoder.decode(value, { stream: true });
+          await typeLoop();
+        }
       }
-    } catch (error) {
-      console.error(error);
-      toast({ variant: "destructive", description: "An error occurred!" });
+    } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        return;
+      }
+      console.error(err);
+      toast({
+        variant: "destructive",
+        title: "Network error",
+        description: "Failed to connect to server",
+      });
     } finally {
-      setLoading(false);
+      setIsStreaming(false);
+      abortControllerRef.current = null;
     }
   }
 
-  useEffect(() => {
-    if (outputText) {
-      let index = 0;
-      const words = outputText.split(" ");
-      const interval = setInterval(() => {
-        if (index < words.length) {
-          setDisplayText((prev) => prev + " " + words[index]);
-          index++;
-        } else {
-          clearInterval(interval);
-        }
-      }, 10);
-      return () => clearInterval(interval);
-    }
-  }, [outputText]);
-
   return (
-    <div className="w-full p-3 min-h-dvh h-full flex justify-start items-center pt-[72px] flex-col">
-      <div className="w-full p-3">
-        <h1 className="text-center font-bold text-white text-4xl">
-          Start Creating
-        </h1>
-        <p className="text-white/60 text-center">
-          Generate stunning text from AI for FREE!
-        </p>
+    <div className="w-full p-4 min-h-dvh flex flex-col gap-6 pt-[72px]">
+      <div className="text-center">
+        <h1 className="text-4xl font-bold text-white">Start Creating</h1>
+        <p className="text-white/60">Generate stunning AI text for free</p>
       </div>
 
-      <div className="flex w-full gap-3 h-[calc(100dvh-200px)] md:flex-row flex-col">
-        <div className="__form flex-[2] flex justify-center items-start flex-col gap-2">
-          <p className="text-center w-full lg:text-left text-sm text-white/80">
-            Type your prompt below to generate text using AI for FREE!
-          </p>
-          <div className="flex w-full gap-2">
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="w-full flex gap-2">
-                <FormField
-                  control={form.control}
-                  name="prompt"
-                  render={({ field }) => (
-                    <FormItem className="w-full max-w-[70%]">
-                      <FormControl>
-                        <Input
-                          placeholder="self driving a car... "
-                          className="transition-all border-white"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <Button loading={loading} type="submit">
-                  Generate
-                </Button>
-              </form>
-            </Form>
-          </div>
-        </div>
+      {/* FORM */}
+      <Form {...form}>
+        <form
+          onSubmit={form.handleSubmit(onSubmit)}
+          className="flex gap-2 justify-center"
+        >
+          <FormField
+            control={form.control}
+            name="prompt"
+            render={({ field }) => (
+              <FormItem className="w-full max-w-[500px]">
+                <FormControl>
+                  <Input {...field} placeholder="Describe the Indian flag..." />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-        <div className="__output min-h-[300px] lg:min-h-full lg:h-full flex-[1] bg-white/5 rounded-lg relative  overflow-y-auto max-h-[300px]">
-          {displayText ? (
-            <div className="w-full h-full flex justify-center items-center text-white/70 text-center p-3">
-              <ReactMarkdown>{displayText}</ReactMarkdown>
-            </div>
-          ) : (
-            <div className="w-full h-full flex justify-center items-center text-white/70 text-center p-3">
-              Enter your prompt and hit generate!
-            </div>
+          <Button type="submit" disabled={isStreaming}>
+            Generate
+          </Button>
+
+          {isStreaming && (
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={stopGeneration}
+            >
+              Stop
+            </Button>
           )}
-        </div>
+        </form>
+      </Form>
+
+      {/* OUTPUT */}
+      <div className="flex-1 bg-white/5 rounded-lg p-6 overflow-y-auto">
+        {displayText ? (
+          <ReactMarkdown
+            className="prose prose-invert max-w-none"
+            components={{
+              h1: ({ node, ...props }) => (
+                <h1 className="text-3xl font-bold mt-6 mb-4" {...props} />
+              ),
+              h2: ({ node, ...props }) => (
+                <h2 className="text-2xl font-semibold mt-6 mb-3" {...props} />
+              ),
+              h3: ({ node, ...props }) => (
+                <h3 className="text-xl font-semibold mt-5 mb-2" {...props} />
+              ),
+              ul: ({ node, ...props }) => (
+                <ul className="list-disc pl-6 space-y-2" {...props} />
+              ),
+              ol: ({ node, ...props }) => (
+                <ol className="list-decimal pl-6 space-y-2" {...props} />
+              ),
+              p: ({ node, ...props }) => (
+                <p className="text-white/90" {...props} />
+              ),
+            }}
+          >
+            {displayText + (isStreaming && cursorVisible ? "▋" : "")}
+          </ReactMarkdown>
+        ) : (
+          <p className="text-center text-white/60">
+            Enter a prompt and click Generate
+          </p>
+        )}
+        {/* 👇 SCROLL TARGET */}
+        <div ref={bottomRef} />
       </div>
     </div>
   );

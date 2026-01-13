@@ -1,75 +1,51 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/utils/authOptions";
 import prisma from "@/utils/prisma";
 
-export async function POST(request: NextRequest) {
+export const runtime = "nodejs"; // REQUIRED for next-auth
+
+export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
+
   if (!session) {
     return NextResponse.json(
-      { error: "You are unauthorized!" },
+      { error: "You are unauthorized! Login before generaitng result" },
       { status: 401 }
     );
   }
 
-  const { prompt }: { prompt: string } = await request.json();
+  const { prompt } = await req.json();
+
+  if (!prompt || typeof prompt !== "string") {
+    return new NextResponse("Invalid prompt", { status: 400 });
+  }
+
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
   });
 
   if (!user) {
-    return NextResponse.json({ error: "No user found" }, { status: 401 });
+    return new NextResponse("User not found", { status: 401 });
   }
 
-  function generateRandomNumber() {
-    return Math.floor(Math.random() * 100000) + 1;
-  }
+  const seed = Math.floor(Math.random() * 100000) + 1;
 
-  const randomSeed = generateRandomNumber();
-  const textUrl = `https://text.pollinations.ai/prompt/${encodeURIComponent(
+  const pollinationsUrl = `https://text.pollinations.ai/prompt/${encodeURIComponent(
     prompt
-  )}?seed=${randomSeed}`;
+  )}?seed=${seed}`;
 
-  const response = await fetch(textUrl);
-  const reader = response.body?.getReader();
-  const decoder = new TextDecoder("utf-8");
-  let done = false;
-  let streamedText = "";
+  const aiResponse = await fetch(pollinationsUrl);
 
-  while (!done) {
-    const { value, done: doneReading } = (await reader?.read()) || {};
-    done = doneReading || false;
-    streamedText += decoder.decode(value);
+  if (!aiResponse.body) {
+    return new NextResponse("AI stream failed", { status: 500 });
   }
 
-  return NextResponse.json({ url: textUrl, streamedText });
-}
-
-export async function GET() {
-  const session = await getServerSession(authOptions);
-  if (!session) {
-    return NextResponse.json(
-      { error: "You are unauthorized" },
-      { status: 401 }
-    );
-  }
-
-  const user = await prisma.user.findUnique({
-    where: {
-      id: session.user.id,
+  // STREAM PASSTHROUGH
+  return new NextResponse(aiResponse.body, {
+    headers: {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-cache",
     },
   });
-
-  if (!user) {
-    return NextResponse.json({ error: "No user found" }, { status: 401 });
-  }
-
-  const posts = await prisma.post.findMany({
-    where: {
-      userId: user.id,
-    },
-    orderBy: { createdAt: "desc" },
-  });
-
-  return NextResponse.json(posts);
 }
